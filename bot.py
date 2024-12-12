@@ -53,20 +53,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Si è verificato un errore durante la creazione del link.")
         logger.error(f"Errore: {e}")
 
-# Funzione per gestire l'approvazione
+# Funzione per approvare un utente
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Verifica che ci siano argomenti nel comando
-    if len(context.args) != 2:
-        await update.message.reply_text("Sintassi errata! Usa /approve <user_id> approve o deny.")
+    # Verifica che ci sia un ID utente
+    if len(context.args) != 1:
+        await update.message.reply_text("Sintassi errata! Usa /approve <user_id> per approvare un utente.")
         return
 
     try:
         user_id = int(context.args[0])  # ID dell'utente da approvare
-        action = context.args[1].lower()  # "approve" o "deny"
-
-        if action not in ["approve", "deny"]:
-            await update.message.reply_text("Azione non valida. Usa /approve <user_id> approve o deny.")
-            return
 
         if user_id not in pending_approval:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
@@ -74,26 +69,67 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         chat_invite_link = pending_approval[user_id]
 
-        if action == "approve":
-            # Invia il link di invito all'utente
-            await context.bot.send_message(
-                user_id,
-                f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
-            )
-            await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
-        else:
-            # Se rifiutato, informiamo l'utente
-            await context.bot.send_message(
-                user_id,
-                "La tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata."
-            )
-            await update.message.reply_text(f"Utente {user_id} rifiutato.")
-        
+        # Invia il link di invito all'utente
+        await context.bot.send_message(
+            user_id,
+            f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
+        )
+        await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
+
         # Rimuovi l'utente dalla lista di approvazione
         del pending_approval[user_id]
 
     except ValueError:
         await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
+
+# Funzione per rifiutare un utente
+async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Verifica che ci siano due argomenti: user_id e motivo
+    if len(context.args) < 1:
+        await update.message.reply_text("Sintassi errata! Usa /deny <user_id> <motivo> per rifiutare un utente.")
+        return
+
+    try:
+        user_id = int(context.args[0])  # ID dell'utente da rifiutare
+        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo fornito."
+
+        if user_id not in pending_approval:
+            await update.message.reply_text("Questo utente non è in lista di attesa.")
+            return
+
+        # Invia il messaggio di rifiuto all'utente
+        await context.bot.send_message(
+            user_id,
+            f"Mi dispiace, la tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata. "
+            f"Motivo: {motivo}"
+        )
+        await update.message.reply_text(f"Utente {user_id} rifiutato. Motivo: {motivo}")
+
+        # Rimuovi l'utente dalla lista di approvazione
+        del pending_approval[user_id]
+
+    except ValueError:
+        await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
+
+# Funzione per approvare tutte le richieste
+async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not pending_approval:
+        await update.message.reply_text("Non ci sono richieste in sospeso.")
+        return
+
+    for user_id, invite_link in pending_approval.items():
+        try:
+            # Invia il link di invito a ciascun utente in attesa
+            await context.bot.send_message(
+                user_id,
+                f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {invite_link}"
+            )
+            await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
+
+            # Rimuovi l'utente dalla lista di approvazione
+            del pending_approval[user_id]
+        except Exception as e:
+            logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
@@ -103,6 +139,12 @@ app.add_handler(CommandHandler("start", start))
 
 # Aggiungi il gestore per l'approvazione
 app.add_handler(CommandHandler("approve", approve))
+
+# Aggiungi il gestore per il rifiuto
+app.add_handler(CommandHandler("deny", deny))
+
+# Aggiungi il gestore per l'approvazione di tutti gli utenti
+app.add_handler(CommandHandler("approveall", approve_all))
 
 # Avvia il bot
 if __name__ == "__main__":
