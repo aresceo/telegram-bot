@@ -18,11 +18,11 @@ if not bot_token:
 CHANNEL_ID = -1002297768070  # Cambia con l'ID del tuo canale
 
 # Connessione al database SQLite
-conn = sqlite3.connect('requests.db')
+conn = sqlite3.connect('requests.db', check_same_thread=False)
 cursor = conn.cursor()
 
 # Crea una tabella per le richieste in sospeso se non esiste
-cursor.execute(''' 
+cursor.execute('''
 CREATE TABLE IF NOT EXISTS pending_approval (
     user_id INTEGER PRIMARY KEY,
     invite_link TEXT NOT NULL
@@ -180,7 +180,7 @@ async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
 # Connessione al database SQLite (persistente)
-conn = sqlite3.connect('requests.db')
+conn = sqlite3.connect('requests.db', check_same_thread=False)
 cursor = conn.cursor()
 
 # Crea una tabella per le richieste in sospeso se non esiste
