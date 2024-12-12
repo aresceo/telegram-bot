@@ -1,9 +1,9 @@
 import os
-import mysql.connector
+import sqlite3
 from telegram import Update, ChatInviteLink
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import logging
-#g
+
 # Configura il logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -15,55 +15,46 @@ if not bot_token:
     raise ValueError("Il token non è stato trovato. Controlla le variabili d'ambiente.")
 
 # ID del canale (deve essere numerico, incluso il prefisso negativo)
-CHANNEL_ID = -1002297768070
+CHANNEL_ID = -1002297768070  # Cambia con l'ID del tuo canale
 
-# Connessione al database MySQL
-db_host = os.getenv("MYSQLHOST")
-db_port = os.getenv("MYSQLPORT")
-db_user = os.getenv("MYSQLUSER")
-db_password = os.getenv("MYSQLPASSWORD")
-db_name = os.getenv("MYSQLDATABASE")
+# Connessione al database SQLite
+conn = sqlite3.connect('requests.db')
+cursor = conn.cursor()
 
-# Crea una connessione MySQL
-def get_db_connection():
-    return mysql.connector.connect(
-        host=db_host,
-        port=db_port,
-        user=db_user,
-        password=db_password,
-        database=db_name
-    )
+# Crea una tabella per le richieste in sospeso se non esiste
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS pending_approval (
+    user_id INTEGER PRIMARY KEY,
+    invite_link TEXT NOT NULL
+)
+''')
+conn.commit()
 
 # Funzione per ottenere tutte le richieste in sospeso dal database
 def get_pending_approval():
-    conn = get_db_connection()
-    cursor = conn.cursor()
     cursor.execute('SELECT user_id, invite_link FROM pending_approval')
-    result = cursor.fetchall()
-    conn.close()
-    return result
+    return cursor.fetchall()
 
 # Funzione per aggiungere una richiesta in sospeso al database
 def add_pending_approval(user_id, invite_link):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO pending_approval (user_id, invite_link) VALUES (%s, %s)', (user_id, invite_link))
+    cursor.execute('INSERT INTO pending_approval (user_id, invite_link) VALUES (?, ?)', (user_id, invite_link))
     conn.commit()
-    conn.close()
 
 # Funzione per rimuovere una richiesta approvata o rifiutata dal database
 def remove_pending_approval(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM pending_approval WHERE user_id = %s', (user_id,))
+    cursor.execute('DELETE FROM pending_approval WHERE user_id = ?', (user_id,))
     conn.commit()
-    conn.close()
 
 # Funzione per gestire il comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.message.from_user.id
-    username = update.message.from_user.username
+    user = update.message.from_user
+    user_id = user.id if user and user.id else None  # Controlla che user_id non sia None
+    username = user.username if user and user.username else "Sconosciuto"
     
+    if not user_id:
+        await update.message.reply_text("Errore: ID utente non trovato.")
+        return
+
     try:
         # Crea un nuovo link di invito valido per una sola persona
         chat_invite_link: ChatInviteLink = await context.bot.create_chat_invite_link(
@@ -80,18 +71,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "Un amministratore dovrà approvarti. Ti invierò il link appena approvato."
         )
         
-        # Notifica l'amministratore (puoi sostituire con il tuo ID Telegram)
-        admin_id =  ["7839114402", "7768881599"]  # Sostituisci con l'ID dell'amministratore
-        await context.bot.send_message(
-            admin_id,
-            f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
-            " Approva o rifiuta questa richiesta."
-        )
+        # Notifica gli amministratori
+        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+        for admin_id in admin_ids:
+            await context.bot.send_message(
+                admin_id,
+                f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
+                " Approva o rifiuta questa richiesta."
+            )
     
     except Exception as e:
         # Gestisce eventuali errori
-        await update.message.reply_text("Si è verificato un errore durante la creazione del link.")
-        logger.error(f"Errore: {e}")
+        await update.message.reply_text(f"Si è verificato un errore durante la creazione del link. Errore: {e}")
+        logger.error(f"Errore durante la creazione del link di invito: {e}")
 
 # Funzione per approvare un utente
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -104,11 +96,8 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = int(context.args[0])  # ID dell'utente da approvare
 
         # Recupera la richiesta dal database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = %s', (user_id,))
+        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = ?', (user_id,))
         result = cursor.fetchone()
-        conn.close()
 
         if not result:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
@@ -141,11 +130,8 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo fornito."
 
         # Recupera la richiesta dal database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = %s', (user_id,))
+        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = ?', (user_id,))
         result = cursor.fetchone()
-        conn.close()
 
         if not result:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
