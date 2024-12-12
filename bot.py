@@ -172,6 +172,20 @@ async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         except Exception as e:
             logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
+# Connessione al database SQLite (persistente)
+conn = sqlite3.connect('requests.db')
+cursor = conn.cursor()
+
+# Crea una tabella per le richieste in sospeso se non esiste
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS pending_approval (
+    user_id INTEGER PRIMARY KEY,
+    invite_link TEXT NOT NULL
+)
+''')
+conn.commit()
+
+
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
 
