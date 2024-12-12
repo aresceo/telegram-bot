@@ -107,7 +107,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Invia il link di invito all'utente
         await context.bot.send_message(
             user_id,
-            f"Un amministratore ha approvato la tua richiesta per unirti al canale, Ecco il link per entrare{chat_invite_link}"
+            f"Un amministratore ha approvato la tua richiesta per unirti al canale, Ecco il link per entrare {chat_invite_link}"
         )
         await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
 
