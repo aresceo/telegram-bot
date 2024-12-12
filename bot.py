@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from telegram import Update, ChatInviteLink
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import logging
@@ -16,8 +17,33 @@ if not bot_token:
 # ID del canale (deve essere numerico, incluso il prefisso negativo)
 CHANNEL_ID = -1002297768070
 
-# Lista di utenti in attesa di approvazione
-pending_approval = {}
+# Connessione al database SQLite
+conn = sqlite3.connect('requests.db')
+cursor = conn.cursor()
+
+# Crea una tabella per le richieste in sospeso se non esiste
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS pending_approval (
+    user_id INTEGER PRIMARY KEY,
+    invite_link TEXT NOT NULL
+)
+''')
+conn.commit()
+
+# Funzione per ottenere tutte le richieste in sospeso dal database
+def get_pending_approval():
+    cursor.execute('SELECT user_id, invite_link FROM pending_approval')
+    return cursor.fetchall()
+
+# Funzione per aggiungere una richiesta in sospeso al database
+def add_pending_approval(user_id, invite_link):
+    cursor.execute('INSERT INTO pending_approval (user_id, invite_link) VALUES (?, ?)', (user_id, invite_link))
+    conn.commit()
+
+# Funzione per rimuovere una richiesta approvata o rifiutata dal database
+def remove_pending_approval(user_id):
+    cursor.execute('DELETE FROM pending_approval WHERE user_id = ?', (user_id,))
+    conn.commit()
 
 # Funzione per gestire il comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -31,20 +57,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             member_limit=1,  # Limita il link a un solo utilizzo
         )
         
-        # Aggiungi l'utente alla lista di approvazione
-        pending_approval[user_id] = chat_invite_link.invite_link
+        # Aggiungi l'utente al database
+        add_pending_approval(user_id, chat_invite_link.invite_link)
         
         # Invia il messaggio di attesa
         await update.message.reply_text(
-            f"Sei stato aggiunto alla lista di attesa per entrare nel canale Executed Ban,a breve un amministratore ti approverà/rifiuterà."
+            f"Sei stato aggiunto alla lista di attesa per entrare nel canale 'Executed Ban'. "
+            "Un amministratore dovrà approvarti. Ti invierò il link appena approvato."
         )
         
         # Notifica l'amministratore (puoi sostituire con il tuo ID Telegram)
-        admin_id = 7839114402;7768881599  # Sostituisci con l'ID dell'amministratore
+        admin_id = "7839114402";"7768881599"  # Sostituisci con l'ID dell'amministratore
         await context.bot.send_message(
             admin_id,
             f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
             " Approva o rifiuta questa richiesta."
+          
         )
     
     except Exception as e:
@@ -62,21 +90,25 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         user_id = int(context.args[0])  # ID dell'utente da approvare
 
-        if user_id not in pending_approval:
+        # Recupera la richiesta dal database
+        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+
+        if not result:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
             return
 
-        chat_invite_link = pending_approval[user_id]
+        chat_invite_link = result[0]
 
         # Invia il link di invito all'utente
         await context.bot.send_message(
             user_id,
-            f"Un amministratore ha accettato la tua richiesta, Ecco il link per unirti al canale {chat_invite_link}"
+            f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
         )
         await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
 
-        # Rimuovi l'utente dalla lista di approvazione
-        del pending_approval[user_id]
+        # Rimuovi l'utente dal database
+        remove_pending_approval(user_id)
 
     except ValueError:
         await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
@@ -90,33 +122,39 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         user_id = int(context.args[0])  # ID dell'utente da rifiutare
-        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo."
+        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo fornito."
 
-        if user_id not in pending_approval:
+        # Recupera la richiesta dal database
+        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+
+        if not result:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
             return
 
         # Invia il messaggio di rifiuto all'utente
         await context.bot.send_message(
             user_id,
-            f"Un amministratore ha rifiutato la tua richiesta per unirti al canale. "
+            f"Mi dispiace, la tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata. "
             f"Motivo: {motivo}"
         )
         await update.message.reply_text(f"Utente {user_id} rifiutato. Motivo: {motivo}")
 
-        # Rimuovi l'utente dalla lista di approvazione
-        del pending_approval[user_id]
+        # Rimuovi l'utente dal database
+        remove_pending_approval(user_id)
 
     except ValueError:
         await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
 
 # Funzione per approvare tutte le richieste
 async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not pending_approval:
+    # Ottieni tutte le richieste pendenti
+    requests = get_pending_approval()
+    if not requests:
         await update.message.reply_text("Non ci sono richieste in sospeso.")
         return
 
-    for user_id, invite_link in pending_approval.items():
+    for user_id, invite_link in requests:
         try:
             # Invia il link di invito a ciascun utente in attesa
             await context.bot.send_message(
@@ -125,8 +163,8 @@ async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             )
             await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
 
-            # Rimuovi l'utente dalla lista di approvazione
-            del pending_approval[user_id]
+            # Rimuovi l'utente dal database
+            remove_pending_approval(user_id)
         except Exception as e:
             logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
