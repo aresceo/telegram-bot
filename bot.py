@@ -157,6 +157,28 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except ValueError:
         await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
 
+# Funzione per approvare tutte le richieste
+async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Ottieni tutte le richieste pendenti
+    requests = get_pending_approval()
+    if not requests:
+        await update.message.reply_text("Non ci sono richieste in sospeso.")
+        return
+
+    for user_id, invite_link in requests:
+        try:
+            # Invia il link di invito a ciascun utente in attesa
+            await context.bot.send_message(
+                user_id,
+                f"Un amministratore ha accettato la richiesta per unirti al canale, ecco il link per unirti {invite_link}"
+            )
+            await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
+
+            # Rimuovi l'utente dal database
+            remove_pending_approval(user_id)
+        except Exception as e:
+            logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
+
 # Connessione al database SQLite (persistente)
 conn = sqlite3.connect('requests.db')
 cursor = conn.cursor()
@@ -181,6 +203,9 @@ app.add_handler(CommandHandler("approve", approve))
 
 # Aggiungi il gestore per il rifiuto
 app.add_handler(CommandHandler("deny", deny))
+
+# Aggiungi il gestore per l'approvazione di tutti gli utenti
+app.add_handler(CommandHandler("approveall", approve_all))
 
 # Avvia il bot
 if __name__ == "__main__":
