@@ -187,4 +187,3 @@ app.add_handler(CommandHandler("approveall", approve_all))
 if __name__ == "__main__":
     print("Bot in esecuzione...")
     app.run_polling()
-#orrrrrr
