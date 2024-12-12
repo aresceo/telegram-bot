@@ -8,7 +8,7 @@ if not bot_token:
     raise ValueError("Il token non è stato trovato. Controlla le variabili d'ambiente.")
 
 # ID del canale (deve essere inserito come valore numerico, incluso il prefisso negativo)
-CHANNEL_ID = -1002416787706
+CHANNEL_ID = -1002297768070
 
 # Funzione per gestire il comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
