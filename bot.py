@@ -84,7 +84,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         for admin_id in admin_ids:
             await context.bot.send_message(
                 admin_id,
-                f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
+                f"Nuova richiesta di accesso al canale da @{username} (ID: {user_id})."
                 " Approva o rifiuta questa richiesta."
             )
     
