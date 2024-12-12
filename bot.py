@@ -36,12 +36,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Invia il messaggio di attesa
         await update.message.reply_text(
-            f"Sei stato aggiunto alla lista di attesa per entrare nel canale 'Executed Ban'. "
-            "Un amministratore dovrà approvarti. Ti invierò il link appena approvato."
+            f"Sei stato aggiunto alla lista di attesa per entrare nel canale Executed Ban,a breve un amministratore ti approverà/rifiuterà."
         )
         
         # Notifica l'amministratore (puoi sostituire con il tuo ID Telegram)
-        admin_id = 7839114402  # Sostituisci con l'ID dell'amministratore
+        admin_id = 7839114402;7768881599  # Sostituisci con l'ID dell'amministratore
         await context.bot.send_message(
             admin_id,
             f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
@@ -72,7 +71,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Invia il link di invito all'utente
         await context.bot.send_message(
             user_id,
-            f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
+            f"Un amministratore ha accettato la tua richiesta, Ecco il link per unirti al canale {chat_invite_link}"
         )
         await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
 
@@ -91,7 +90,7 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         user_id = int(context.args[0])  # ID dell'utente da rifiutare
-        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo fornito."
+        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo."
 
         if user_id not in pending_approval:
             await update.message.reply_text("Questo utente non è in lista di attesa.")
@@ -100,7 +99,7 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Invia il messaggio di rifiuto all'utente
         await context.bot.send_message(
             user_id,
-            f"Mi dispiace, la tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata. "
+            f"Un amministratore ha rifiutato la tua richiesta per unirti al canale. "
             f"Motivo: {motivo}"
         )
         await update.message.reply_text(f"Utente {user_id} rifiutato. Motivo: {motivo}")
