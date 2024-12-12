@@ -22,7 +22,7 @@ conn = sqlite3.connect('requests.db')
 cursor = conn.cursor()
 
 # Crea una tabella per le richieste in sospeso se non esiste
-cursor.execute('''
+cursor.execute(''' 
 CREATE TABLE IF NOT EXISTS pending_approval (
     user_id INTEGER PRIMARY KEY,
     invite_link TEXT NOT NULL
@@ -45,6 +45,11 @@ def remove_pending_approval(user_id):
     cursor.execute('DELETE FROM pending_approval WHERE user_id = ?', (user_id,))
     conn.commit()
 
+# Funzione per verificare se un utente ha già ricevuto il link
+def has_received_link(user_id):
+    cursor.execute('SELECT user_id FROM pending_approval WHERE user_id = ?', (user_id,))
+    return cursor.fetchone() is not None
+
 # Funzione per gestire il comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.message.from_user
@@ -53,6 +58,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     if not user_id:
         await update.message.reply_text("Errore: ID utente non trovato.")
+        return
+
+    if has_received_link(user_id):  # Controlla se l'utente ha già ricevuto il link
+        await update.message.reply_text("Hai già ricevuto il link per unirti al canale.")
         return
 
     try:
@@ -67,7 +76,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Invia il messaggio di attesa
         await update.message.reply_text(
-            f"Sei stato aggiunto alla lista di di Executed Ban, Un amministratore approverà/rifiutera la tua richiesta"
+            f"Sei stato aggiunto alla lista di Executed Ban, un amministratore approverà/rifiuterà la tua richiesta."
         )
         
         # Notifica gli amministratori
@@ -86,7 +95,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Funzione per approvare un utente
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Verifica che ci sia un ID utente
     if len(context.args) != 1:
         await update.message.reply_text("Usa /approve <user_id> per approvare un utente.")
         return
@@ -119,9 +127,8 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Funzione per rifiutare un utente
 async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Verifica che ci siano due argomenti: user_id e motivo
     if len(context.args) < 1:
-        await update.message.reply_text(" Usa /deny <user_id> <motivo> per rifiutare un utente.")
+        await update.message.reply_text("Usa /deny <user_id> <motivo> per rifiutare un utente.")
         return
 
     try:
@@ -150,28 +157,6 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except ValueError:
         await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
 
-# Funzione per approvare tutte le richieste
-async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Ottieni tutte le richieste pendenti
-    requests = get_pending_approval()
-    if not requests:
-        await update.message.reply_text("Non ci sono richieste in sospeso.")
-        return
-
-    for user_id, invite_link in requests:
-        try:
-            # Invia il link di invito a ciascun utente in attesa
-            await context.bot.send_message(
-                user_id,
-                f"Un amministratore ha accettato la richiesta per unirti al canale, ecco il link per unirti{invite_link}"
-            )
-            await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
-
-            # Rimuovi l'utente dal database
-            remove_pending_approval(user_id)
-        except Exception as e:
-            logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
-
 # Connessione al database SQLite (persistente)
 conn = sqlite3.connect('requests.db')
 cursor = conn.cursor()
@@ -185,7 +170,6 @@ CREATE TABLE IF NOT EXISTS pending_approval (
 ''')
 conn.commit()
 
-
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
 
@@ -197,9 +181,6 @@ app.add_handler(CommandHandler("approve", approve))
 
 # Aggiungi il gestore per il rifiuto
 app.add_handler(CommandHandler("deny", deny))
-
-# Aggiungi il gestore per l'approvazione di tutti gli utenti
-app.add_handler(CommandHandler("approveall", approve_all))
 
 # Avvia il bot
 if __name__ == "__main__":
