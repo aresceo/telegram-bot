@@ -1,7 +1,6 @@
 import os
 from telegram import Update, ChatInviteLink
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram.ext import MessageHandler, filters
 import logging
 
 # Configura il logging
@@ -56,36 +55,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Funzione per gestire l'approvazione
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = int(context.args[0])  # ID dell'utente da approvare
-    action = context.args[1].lower()  # "approve" o "deny"
-
-    if action not in ["approve", "deny"]:
-        await update.message.reply_text("Azione non valida. Usa /approve <user_id> approve o deny.")
+    # Verifica che ci siano argomenti nel comando
+    if len(context.args) != 2:
+        await update.message.reply_text("Sintassi errata! Usa /approve <user_id> approve o deny.")
         return
 
-    if user_id not in pending_approval:
-        await update.message.reply_text("Questo utente non è in lista di attesa.")
-        return
+    try:
+        user_id = int(context.args[0])  # ID dell'utente da approvare
+        action = context.args[1].lower()  # "approve" o "deny"
 
-    chat_invite_link = pending_approval[user_id]
+        if action not in ["approve", "deny"]:
+            await update.message.reply_text("Azione non valida. Usa /approve <user_id> approve o deny.")
+            return
 
-    if action == "approve":
-        # Invia il link di invito all'utente
-        await context.bot.send_message(
-            user_id,
-            f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
-        )
-        await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
-    else:
-        # Se rifiutato, informiamo l'utente
-        await context.bot.send_message(
-            user_id,
-            "La tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata."
-        )
-        await update.message.reply_text(f"Utente {user_id} rifiutato.")
-    
-    # Rimuovi l'utente dalla lista di approvazione
-    del pending_approval[user_id]
+        if user_id not in pending_approval:
+            await update.message.reply_text("Questo utente non è in lista di attesa.")
+            return
+
+        chat_invite_link = pending_approval[user_id]
+
+        if action == "approve":
+            # Invia il link di invito all'utente
+            await context.bot.send_message(
+                user_id,
+                f"Il tuo accesso al canale 'Executed Ban' è stato approvato. Ecco il link per entrare: {chat_invite_link}"
+            )
+            await update.message.reply_text(f"Utente {user_id} approvato e link inviato.")
+        else:
+            # Se rifiutato, informiamo l'utente
+            await context.bot.send_message(
+                user_id,
+                "La tua richiesta di accesso al canale 'Executed Ban' è stata rifiutata."
+            )
+            await update.message.reply_text(f"Utente {user_id} rifiutato.")
+        
+        # Rimuovi l'utente dalla lista di approvazione
+        del pending_approval[user_id]
+
+    except ValueError:
+        await update.message.reply_text("ID utente non valido. Assicurati di inserire un numero valido.")
 
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
