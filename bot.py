@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         
         # Notifica l'amministratore (puoi sostituire con il tuo ID Telegram)
-        admin_id = 123456789  # Sostituisci con l'ID dell'amministratore
+        admin_id = 7839114402  # Sostituisci con l'ID dell'amministratore
         await context.bot.send_message(
             admin_id,
             f"Nuova richiesta di accesso al canale da {username} (ID: {user_id})."
