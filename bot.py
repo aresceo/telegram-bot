@@ -96,7 +96,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Invia il messaggio di attesa
         await update.message.reply_text(
-            f"Sei stato aggiunto alla lista di Executed Ban, un amministratore approverà/rifiuterà la tua richiesta."
+            f"Se📑 - La tua richiesta per unirti a Executed Ban, é stata inviata.\n
+👤 - A breve un amministratore accetterà/rifiuterà la tua richiesta."
         )
         
         # Notifica gli amministratori
