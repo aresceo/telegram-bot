@@ -28,6 +28,13 @@ CREATE TABLE IF NOT EXISTS pending_approval (
     invite_link TEXT NOT NULL
 )
 ''')
+
+# Crea una tabella per memorizzare gli utenti che hanno avviato il bot
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY
+)
+''')
 conn.commit()
 
 # Funzione per ottenere tutte le richieste in sospeso dal database
@@ -50,6 +57,16 @@ def has_received_link(user_id):
     cursor.execute('SELECT user_id FROM pending_approval WHERE user_id = ?', (user_id,))
     return cursor.fetchone() is not None
 
+# Funzione per aggiungere un utente che ha avviato il bot
+def add_user(user_id):
+    cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
+    conn.commit()
+
+# Funzione per ottenere tutti gli utenti registrati
+def get_all_users():
+    cursor.execute('SELECT user_id FROM users')
+    return [row[0] for row in cursor.fetchall()]
+
 # Funzione per gestire il comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.message.from_user
@@ -59,6 +76,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not user_id:
         await update.message.reply_text("Errore: ID utente non trovato.")
         return
+
+    # Registra l'utente nel database
+    add_user(user_id)
 
     if has_received_link(user_id):  # Controlla se l'utente ha già ricevuto il link
         await update.message.reply_text("Hai già ricevuto il link per unirti al canale.")
@@ -179,18 +199,22 @@ async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         except Exception as e:
             logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
-# Connessione al database SQLite (persistente)
-conn = sqlite3.connect('requests.db', check_same_thread=False)
-cursor = conn.cursor()
+# Funzione per inviare un messaggio a tutti gli utenti registrati
+async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Usa /all <messaggio> per inviare un messaggio a tutti gli utenti.")
+        return
 
-# Crea una tabella per le richieste in sospeso se non esiste
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS pending_approval (
-    user_id INTEGER PRIMARY KEY,
-    invite_link TEXT NOT NULL
-)
-''')
-conn.commit()
+    message = " ".join(context.args)
+    users = get_all_users()
+
+    for user_id in users:
+        try:
+            await context.bot.send_message(user_id, message)
+        except Exception as e:
+            logger.error(f"Errore nell'invio del messaggio a {user_id}: {e}")
+
+    await update.message.reply_text("Messaggio inviato a tutti gli utenti registrati.")
 
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
@@ -206,6 +230,9 @@ app.add_handler(CommandHandler("deny", deny))
 
 # Aggiungi il gestore per l'approvazione di tutti gli utenti
 app.add_handler(CommandHandler("approveall", approve_all))
+
+# Aggiungi il gestore per il comando /all
+app.add_handler(CommandHandler("all", broadcast_message))
 
 # Avvia il bot
 if __name__ == "__main__":
