@@ -3,7 +3,6 @@ import sqlite3
 from telegram import Update, ChatInviteLink
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import logging
-import asyncio
 
 # Configura il logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,7 +16,6 @@ if not bot_token:
 
 # ID del canale (deve essere numerico, incluso il prefisso negativo)
 CHANNEL_ID = -1002297768070  # Cambia con l'ID del tuo canale
-ADMIN_ID = 7839114402  # ID dell'amministratore da notificare
 
 # Connessione al database SQLite
 conn = sqlite3.connect('requests.db', check_same_thread=False)
@@ -31,9 +29,6 @@ CREATE TABLE IF NOT EXISTS pending_approval (
 )
 ''')
 conn.commit()
-
-# Struttura dati per monitorare gli ID
-monitored_ids = {}
 
 # Funzione per ottenere tutte le richieste in sospeso dal database
 def get_pending_approval():
@@ -184,58 +179,18 @@ async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         except Exception as e:
             logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
 
-# Funzione per verificare se un canale, gruppo o account esiste
-async def check_entity_existence(context: ContextTypes.DEFAULT_TYPE, entity_id: str):
-    try:
-        await context.bot.get_chat(chat_id=entity_id)
-        return True
-    except Exception as e:
-        return False
+# Connessione al database SQLite (persistente)
+conn = sqlite3.connect('requests.db', check_same_thread=False)
+cursor = conn.cursor()
 
-# Loop asincrono per monitorare gli ID
-async def monitor_entities(context: ContextTypes.DEFAULT_TYPE):
-    while True:
-        for entity_id in list(monitored_ids.keys()):
-            if not await check_entity_existence(context, entity_id):
-                # Se l'entità non esiste più, invia una notifica all'amministratore
-                await context.bot.send_message(
-                    ADMIN_ID,
-                    f"Il canale/gruppo/account con ID {entity_id} è stato eliminato."
-                )
-                del monitored_ids[entity_id]
-        await asyncio.sleep(10)
-
-# Funzione per gestire il comando /sniper
-async def sniper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if len(context.args) != 1:
-        await update.message.reply_text("Usa /sniper <canale/gruppo/account ID> per monitorare un'entità.")
-        return
-
-    entity_id = context.args[0]
-
-    if entity_id in monitored_ids:
-        await update.message.reply_text("Questo ID è già monitorato.")
-        return
-
-    # Aggiungi l'ID alla lista degli ID monitorati
-    monitored_ids[entity_id] = True
-    await update.message.reply_text(f"L'ID {entity_id} è ora monitorato.")
-
-# Funzione per gestire il comando /stop_sniper
-async def stop_sniper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if len(context.args) != 1:
-        await update.message.reply_text("Usa /stop_sniper <canale/gruppo/account ID> per smettere di monitorare un'entità.")
-        return
-
-    entity_id = context.args[0]
-
-    if entity_id not in monitored_ids:
-        await update.message.reply_text("Questo ID non è monitorato.")
-        return
-
-    # Rimuovi l'ID dalla lista degli ID monitorati
-    del monitored_ids[entity_id]
-    await update.message.reply_text(f"L'ID {entity_id} non è più monitorato.")
+# Crea una tabella per le richieste in sospeso se non esiste
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS pending_approval (
+    user_id INTEGER PRIMARY KEY,
+    invite_link TEXT NOT NULL
+)
+''')
+conn.commit()
 
 # Configurazione del bot
 app = ApplicationBuilder().token(bot_token).build()
@@ -243,23 +198,14 @@ app = ApplicationBuilder().token(bot_token).build()
 # Aggiungi il gestore per il comando /start
 app.add_handler(CommandHandler("start", start))
 
-# Aggiungi il gestore per il comando /approve
+# Aggiungi il gestore per l'approvazione
 app.add_handler(CommandHandler("approve", approve))
 
-# Aggiungi il gestore per il comando /deny
+# Aggiungi il gestore per il rifiuto
 app.add_handler(CommandHandler("deny", deny))
 
-# Aggiungi il gestore per il comando /approveall
+# Aggiungi il gestore per l'approvazione di tutti gli utenti
 app.add_handler(CommandHandler("approveall", approve_all))
-
-# Aggiungi il gestore per il comando /sniper
-app.add_handler(CommandHandler("sniper", sniper))
-
-# Aggiungi il gestore per il comando /stop_sniper
-app.add_handler(CommandHandler("stop_sniper", stop_sniper))
-
-# Avvia il loop di monitoraggio quando il bot inizia
-app.job_queue.run_repeating(monitor_entities, interval=10, first=0)
 
 # Avvia il bot
 if __name__ == "__main__":
