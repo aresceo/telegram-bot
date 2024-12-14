@@ -15,8 +15,7 @@ if not bot_token:
     raise ValueError("Il token non è stato trovato. Controlla le variabili d'ambiente.")
 
 # ID dei canali
-CHANNEL_ID = -1002297768070  # Cambia con l'ID del tuo canale
-GROUP_ID = -1002432052771  # Cambia con l'ID del tuo gruppo
+GROUP_ID = -1002385345446  # Cambia con l'ID del tuo gruppo
 
 # Connessione al database SQLite
 conn = sqlite3.connect('requests.db', check_same_thread=False)
@@ -185,7 +184,6 @@ async def ban_members(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     message += f"[📎] @executedban"
 
     try:
-        await context.bot.send_message(CHANNEL_ID, message)
         await context.bot.send_message(GROUP_ID, message)
         await update.message.reply_text("Messaggio inviato con successo!")
     except Exception as e:
