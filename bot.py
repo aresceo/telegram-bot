@@ -3,6 +3,7 @@ import sqlite3
 from telegram import Update, ChatInviteLink
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import logging
+from datetime import datetime, timedelta
 
 # Configura il logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -65,10 +66,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     try:
-        # Crea un nuovo link di invito valido per una sola persona
+        # Crea un nuovo link di invito valido per una sola persona e che scade dopo 10 minuti
+        expire_time = datetime.now() + timedelta(minutes=10)
         chat_invite_link: ChatInviteLink = await context.bot.create_chat_invite_link(
             chat_id=CHANNEL_ID,
             member_limit=1,  # Limita il link a un solo utilizzo
+            expire_date=expire_time.timestamp()  # Scade dopo 10 minuti
         )
         
         # Aggiungi l'utente al database
