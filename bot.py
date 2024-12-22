@@ -67,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         # Crea un nuovo link di invito valido per una sola persona e che scade dopo 10 minuti
-        expire_time = datetime.now() + timedelta(minutes=10)
+        expire_time = datetime.now() + timedelta(minutes=1)
         chat_invite_link: ChatInviteLink = await context.bot.create_chat_invite_link(
             chat_id=CHANNEL_ID,
             member_limit=1,  # Limita il link a un solo utilizzo
