@@ -128,6 +128,14 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         await update.message.reply_text(f"🎉 Utente {user_id} approvato e link inviato! 📨")
 
+        # Notifica entrambi gli amministratori
+        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+        for admin_id in admin_ids:
+            await context.bot.send_message(
+                admin_id,
+                f"🎉 La richiesta di accesso di {user_id} è stata approvata e il link è stato inviato!"
+            )
+
         # Rimuovi l'utente dal database
         remove_pending_approval(user_id)
 
@@ -158,6 +166,14 @@ async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"❌ La tua richiesta per unirti al canale è stata rifiutata. 😔\nMotivo: {motivo}"
         )
         await update.message.reply_text(f"❌ Utente {user_id} rifiutato. Motivo: {motivo}")
+
+        # Notifica entrambi gli amministratori
+        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+        for admin_id in admin_ids:
+            await context.bot.send_message(
+                admin_id,
+                f"❌ La richiesta di accesso di {user_id} è stata rifiutata. Motivo: {motivo}"
+            )
 
         # Rimuovi l'utente dal database
         remove_pending_approval(user_id)
