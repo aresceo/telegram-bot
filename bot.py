@@ -127,11 +127,11 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
         # Notifica tutti gli amministratori
-        admin_ids = ["7839114402", "7768881599"]
+        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
         for admin_id in admin_ids:
             await context.bot.send_message(
                 admin_id,
-                f"🎉 La richiesta dell'utente {user_id} è stata approvata, il link è stato inviato!"
+                f"🎉 La richiesta di {username} {user_id} è stata approvata, il link è stato inviato!"
             )
 
         # Rimuovi l'utente dal database
@@ -139,50 +139,91 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     except ValueError:
         await update.message.reply_text("❌ L'ID che hai inserito non è valido. Prova con un numero giusto.")
-    except Exception as e:
-        logger.error(f"Errore nell'approvazione dell'utente: {e}")
-        await update.message.reply_text("❌ Si è verificato un errore.")
 
-# Funzione per approvare tutti gli utenti
-async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    pending_requests = get_pending_approval()
-    for user_id, invite_link in pending_requests:
-        try:
-            await context.bot.send_message(
-                user_id,
-                f"✅ La tua richiesta è stata approvata! Ecco il link per entrare nel canale: {invite_link}"
-            )
-        except Exception as e:
-            logger.error(f"Errore nell'invio del link all'utente {user_id}: {e}")
-        finally:
-            remove_pending_approval(user_id)
-
-    await update.message.reply_text("🎉 Tutte le richieste sono state approvate!")
-
-# Funzione per rifiutare una richiesta
+# Funzione per rifiutare un utente
 async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if len(context.args) != 1:
-        await update.message.reply_text("❓ Usa /deny <user_id> per rifiutare una richiesta.")
+    if len(context.args) < 1:
+        await update.message.reply_text("❓ Usa /deny <user_id> <motivo> per rifiutare un utente.")
         return
 
     try:
-        user_id = int(context.args[0])
+        user_id = int(context.args[0])  # ID dell'utente da rifiutare
+        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo"
+
+        # Recupera la richiesta dal database
+        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = %s', (user_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            await update.message.reply_text("⚠️ Questo utente non è in lista di attesa.")
+            return
+
+        # Invia il messaggio di rifiuto all'utente
+        await context.bot.send_message(
+            user_id,
+            f"❌ La tua richiesta è stata rifiutata. Motivo: {motivo}"
+        )
+        await update.message.reply_text(f"❌ La richiesta di {user_id} è stata rifiutata. Motivo: {motivo}")
+
+        # Notifica tutti gli amministratori
+        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+        for admin_id in admin_ids:
+            await context.bot.send_message(
+                admin_id,
+                f"❌ La richiesta di {user_id} è stata rifiutata. Motivo: {motivo}"
+            )
+
+        # Rimuovi l'utente dal database
         remove_pending_approval(user_id)
-        await update.message.reply_text(f"❌ La richiesta dell'utente {user_id} è stata rifiutata.")
+
     except ValueError:
-        await update.message.reply_text("❌ L'ID che hai inserito non è valido.")
-    except Exception as e:
-        logger.error(f"Errore durante il rifiuto dell'utente {user_id}: {e}")
-        await update.message.reply_text("❌ Si è verificato un errore.")
+        await update.message.reply_text("❌ L'ID che hai inserito non è valido. Prova con un numero giusto.")
 
-# Configura l'applicazione Telegram
-application = ApplicationBuilder().token(bot_token).build()
+# Funzione per approvare tutte le richieste
+async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Ottieni tutte le richieste pendenti
+    requests = get_pending_approval()
+    if not requests:
+        await update.message.reply_text("📭 Non ci sono richieste in attesa.")
+        return
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("approve", approve))
-application.add_handler(CommandHandler("approveall", approve_all))
-application.add_handler(CommandHandler("deny", deny))
+    for user_id, invite_link in requests:
+        try:
+            # Invia il link di invito a ciascun utente in attesa
+            await context.bot.send_message(
+                user_id,
+                f"✅ La tua richiesta è stata approvata! 🎉 Ecco il link per entrare nel canale: {invite_link}"
+            )
 
+            # Notifica tutti gli amministratori
+            admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+            for admin_id in admin_ids:
+                await context.bot.send_message(
+                    admin_id,
+                    f"🎉 La richiesta di {user_id} è stata approvata, il link è stato inviato!"
+                )
+
+            # Rimuovi l'utente dal database
+            remove_pending_approval(user_id)
+        except Exception as e:
+            logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
+
+# Configurazione del bot
+app = ApplicationBuilder().token(bot_token).build()
+
+# Aggiungi il gestore per il comando /start
+app.add_handler(CommandHandler("start", start))
+
+# Aggiungi il gestore per l'approvazione
+app.add_handler(CommandHandler("approve", approve))
+
+# Aggiungi il gestore per il rifiuto
+app.add_handler(CommandHandler("deny", deny))
+
+# Aggiungi il gestore per l'approvazione di tutti gli utenti
+app.add_handler(CommandHandler("approveall", approve_all))
+
+# Avvia il bot
 if __name__ == "__main__":
-    logger.info("Bot in esecuzione...")
-    application.run_polling()
+    print("🤖 Bot in esecuzione...")
+    app.run_polling()
