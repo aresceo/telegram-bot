@@ -143,11 +143,45 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.error(f"Errore nell'approvazione dell'utente: {e}")
         await update.message.reply_text("❌ Si è verificato un errore.")
 
+# Funzione per approvare tutti gli utenti
+async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    pending_requests = get_pending_approval()
+    for user_id, invite_link in pending_requests:
+        try:
+            await context.bot.send_message(
+                user_id,
+                f"✅ La tua richiesta è stata approvata! Ecco il link per entrare nel canale: {invite_link}"
+            )
+        except Exception as e:
+            logger.error(f"Errore nell'invio del link all'utente {user_id}: {e}")
+        finally:
+            remove_pending_approval(user_id)
+
+    await update.message.reply_text("🎉 Tutte le richieste sono state approvate!")
+
+# Funzione per rifiutare una richiesta
+async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) != 1:
+        await update.message.reply_text("❓ Usa /deny <user_id> per rifiutare una richiesta.")
+        return
+
+    try:
+        user_id = int(context.args[0])
+        remove_pending_approval(user_id)
+        await update.message.reply_text(f"❌ La richiesta dell'utente {user_id} è stata rifiutata.")
+    except ValueError:
+        await update.message.reply_text("❌ L'ID che hai inserito non è valido.")
+    except Exception as e:
+        logger.error(f"Errore durante il rifiuto dell'utente {user_id}: {e}")
+        await update.message.reply_text("❌ Si è verificato un errore.")
+
 # Configura l'applicazione Telegram
 application = ApplicationBuilder().token(bot_token).build()
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("approve", approve))
+application.add_handler(CommandHandler("approveall", approve_all))
+application.add_handler(CommandHandler("deny", deny))
 
 if __name__ == "__main__":
     logger.info("Bot in esecuzione...")
