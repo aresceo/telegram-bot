@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Ottieni il token dalla variabile d'ambiente
 bot_token = os.getenv("BOT_TOKEN")
 if not bot_token:
-    raise ValueError("\ud83d\udea8 Token mancante. Controlla le variabili d'ambiente.")
+    raise ValueError("🚨 Token mancante. Controlla le variabili d'ambiente.")
 
 # ID del canale (deve essere numerico, incluso il prefisso negativo)
 CHANNEL_ID = -1002297768070  # Cambia con l'ID del tuo canale
@@ -64,11 +64,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     username = user.username if user and user.username else "Sconosciuto"
     
     if not user_id:
-        await update.message.reply_text("\u274c Non riesco a trovare il tuo ID, sembra che ci sia un errore.")
+        await update.message.reply_text("❌ Non riesco a trovare il tuo ID, sembra che ci sia un errore.")
         return
 
     if has_received_link(user_id):  # Controlla se l'utente ha già ricevuto il link
-        await update.message.reply_text("\u26a0\ufe0f Hai già ricevuto il link per il canale!")
+        await update.message.reply_text("⚠️ Hai già ricevuto il link per il canale!")
         return
 
     try:
@@ -85,7 +85,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Invia il messaggio di attesa
         await update.message.reply_text(
-            f"Ti ho aggiunto alla lista d'attesa! Un admin ti farà sapere se puoi entrare. \u23f3"
+            f"Ti ho aggiunto alla lista d'attesa! Un admin ti farà sapere se puoi entrare. ⏳"
         )
         
         # Notifica gli amministratori
@@ -93,18 +93,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         for admin_id in admin_ids:
             await context.bot.send_message(
                 admin_id,
-                f"\ud83d\udd14 Nuova richiesta di accesso da @{username} (ID: {user_id}). Decidi se approvarla."
+                f"🔔 Nuova richiesta di accesso da @{username} (ID: {user_id}). Decidi se approvarla."
             )
     
     except Exception as e:
         # Gestisce eventuali errori
-        await update.message.reply_text(f"\u274c Si è verificato un errore. Errore: {e}")
+        await update.message.reply_text(f"❌ Si è verificato un errore. Errore: {e}")
         logger.error(f"Errore durante la creazione del link di invito: {e}")
 
 # Funzione per approvare un utente
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if len(context.args) != 1:
-        await update.message.reply_text("\u2753 Usa /approve <user_id> per approvare un utente.")
+        await update.message.reply_text("❓ Usa /approve <user_id> per approvare un utente.")
         return
 
     try:
@@ -115,7 +115,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         result = cursor.fetchone()
 
         if not result:
-            await update.message.reply_text("\u26a0\ufe0f Questo utente non è in lista di attesa.")
+            await update.message.reply_text("⚠️ Questo utente non è in lista di attesa.")
             return
 
         chat_invite_link = result[0]
@@ -123,107 +123,32 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Invia il link di invito all'utente
         await context.bot.send_message(
             user_id,
-            f"\u2705 La tua richiesta è stata approvata! Ecco il link per entrare nel canale: {chat_invite_link}"
+            f"✅ La tua richiesta è stata approvata! Ecco il link per entrare nel canale: {chat_invite_link}"
         )
 
         # Notifica tutti gli amministratori
-        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
+        admin_ids = ["7839114402", "7768881599"]
         for admin_id in admin_ids:
             await context.bot.send_message(
                 admin_id,
-                f"\ud83c\udf89 La richiesta di {user_id} è stata approvata, il link è stato inviato!"
+                f"🎉 La richiesta dell'utente {user_id} è stata approvata, il link è stato inviato!"
             )
 
         # Rimuovi l'utente dal database
         remove_pending_approval(user_id)
 
     except ValueError:
-        await update.message.reply_text("\u274c L'ID che hai inserito non è valido. Prova con un numero giusto.")
+        await update.message.reply_text("❌ L'ID che hai inserito non è valido. Prova con un numero giusto.")
+    except Exception as e:
+        logger.error(f"Errore nell'approvazione dell'utente: {e}")
+        await update.message.reply_text("❌ Si è verificato un errore.")
 
-# Funzione per rifiutare un utente
-async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if len(context.args) < 1:
-        await update.message.reply_text("\u2753 Usa /deny <user_id> <motivo> per rifiutare un utente.")
-        return
+# Configura l'applicazione Telegram
+application = ApplicationBuilder().token(bot_token).build()
 
-    try:
-        user_id = int(context.args[0])  # ID dell'utente da rifiutare
-        motivo = " ".join(context.args[1:]) if len(context.args) > 1 else "Nessun motivo"
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("approve", approve))
 
-        # Recupera la richiesta dal database
-        cursor.execute('SELECT invite_link FROM pending_approval WHERE user_id = %s', (user_id,))
-        result = cursor.fetchone()
-
-        if not result:
-            await update.message.reply_text("\u26a0\ufe0f Questo utente non è in lista di attesa.")
-            return
-
-        # Invia il messaggio di rifiuto all'utente
-        await context.bot.send_message(
-            user_id,
-            f"\u274c La tua richiesta è stata rifiutata. Motivo: {motivo}"
-        )
-        await update.message.reply_text(f"\u274c La richiesta di {user_id} è stata rifiutata. Motivo: {motivo}")
-
-        # Notifica tutti gli amministratori
-        admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
-        for admin_id in admin_ids:
-            await context.bot.send_message(
-                admin_id,
-                f"\u274c La richiesta di {user_id} è stata rifiutata. Motivo: {motivo}"
-            )
-
-        # Rimuovi l'utente dal database
-        remove_pending_approval(user_id)
-
-    except ValueError:
-        await update.message.reply_text("\u274c L'ID che hai inserito non è valido. Prova con un numero giusto.")
-
-# Funzione per approvare tutte le richieste
-async def approve_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Ottieni tutte le richieste pendenti
-    requests = get_pending_approval()
-    if not requests:
-        await update.message.reply_text("\ud83d\udce5 Non ci sono richieste in attesa.")
-        return
-
-    for user_id, invite_link in requests:
-        try:
-            # Invia il link di invito a ciascun utente in attesa
-            await context.bot.send_message(
-                user_id,
-                f"\u2705 La tua richiesta è stata approvata! \ud83c\udf89 Ecco il link per entrare nel canale: {invite_link}"
-            )
-
-            # Notifica tutti gli amministratori
-            admin_ids = ["7839114402", "7768881599"]  # Aggiungi gli ID degli amministratori
-            for admin_id in admin_ids:
-                await context.bot.send_message(
-                    admin_id,
-                    f"\ud83c\udf89 La richiesta di {user_id} è stata approvata, il link è stato inviato!"
-                )
-
-            # Rimuovi l'utente dal database
-            remove_pending_approval(user_id)
-        except Exception as e:
-            logger.error(f"Errore nell'inviare il link a {user_id}: {e}")
-
-# Configurazione del bot
-app = ApplicationBuilder().token(bot_token).build()
-
-# Aggiungi il gestore per il comando /start
-app.add_handler(CommandHandler("start", start))
-
-# Aggiungi il gestore per l'approvazione
-app.add_handler(CommandHandler("approve", approve))
-
-# Aggiungi il gestore per il rifiuto
-app.add_handler(CommandHandler("deny", deny))
-
-# Aggiungi il gestore per l'approvazione di tutti gli utenti
-app.add_handler(CommandHandler("approveall", approve_all))
-
-# Avvia il bot
 if __name__ == "__main__":
-    print("\ud83e\udd16 Bot in esecuzione...")
-    app.run_polling()
+    logger.info("Bot in esecuzione...")
+    application.run_polling()
