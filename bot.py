@@ -131,7 +131,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         for admin_id in admin_ids:
             await context.bot.send_message(
                 admin_id,
-                f"🎉 La richiesta di {user_id} è stata approvata, il link è stato inviato!"
+                f"🎉 La richiesta di {username} (user_id è stata approvata, il link è stato inviato!"
             )
 
         # Rimuovi l'utente dal database
